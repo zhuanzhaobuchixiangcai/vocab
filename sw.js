@@ -1,5 +1,11 @@
-const CACHE = 'vocab-v2';
-const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'vocab-v3';
+const ASSETS = [
+  '/vocab/',
+  '/vocab/index.html',
+  '/vocab/manifest.json',
+  '/vocab/icon-192.png',
+  '/vocab/icon-512.png'
+];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
