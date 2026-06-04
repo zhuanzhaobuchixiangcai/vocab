@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1A1A2E">
+<title>单词本</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #F5F5F5;
+    color: #1A1A2E;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  .header {
+    background: #1A1A2E;
+    color: #fff;
+    padding: 16px 20px;
+    font-size: 20px;
+    font-weight: 700;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .header .count { font-size: 13px; font-weight: 400; opacity: .7; }
+  .container { max-width: 600px; margin: 0 auto; padding: 12px 16px 80px; }
+  .empty {
+    text-align: center;
+    color: #999;
+    padding: 80px 32px;
+    font-size: 15px;
+    line-height: 1.8;
+  }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 10px 24px; border-radius: 20px; color: #fff; font-size: 14px;
+    z-index: 100; pointer-events: none;
+    animation: fadeInOut 2.2s ease forwards;
+  }
+  @keyframes fadeInOut {
+    0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .word-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    cursor: pointer;
+    transition: background .2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .word-card:active { background: #f0f0f0; }
+  .word-card .original {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1A1A2E;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .word-card .translation {
+    font-size: 15px;
+    color: #555;
+    margin-top: 6px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .word-card .meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+  }
+  .word-card .time {
+    font-size: 11px;
+    color: #bbb;
+  }
+  .word-card .del-btn {
+    background: #C62828;
+    color: #fff;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 14px;
+    font-size: 13px;
+    display: none;
+  }
+  .word-card.show-del .del-btn { display: block; }
+  .progress {
+    height: 3px; background: #E0E0E0;
+    position: sticky; top: 52px; z-index: 9;
+  }
+  .progress-bar {
+    height: 100%; background: #4A90D9;
+    transition: width .3s;
+    display: none;
+  }
+  .progress-bar.active { display: block; width: 100%; animation: progress 1.5s ease-in-out infinite; }
+  @keyframes progress { 0% { width: 0; } 50% { width: 70%; } 100% { width: 100%; } }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <span>单词本</span>
+  <span class="count" id="count"></span>
+</header>
+<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+<main class="container" id="list"></main>
+
+<script>
+const DB_NAME = 'vocab_db';
+const DB_VERSION = 1;
+const STORE_NAME = 'words';
+
+let db;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('createdAt', 'createdAt', { unique: false });
+      }
+    };
+    req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getAll() {
+  return new Promise((resolve) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const idx = store.index('createdAt');
+    const req = idx.openCursor(null, 'prev');
+    const results = [];
+    req.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) { results.push(cursor.value); cursor.continue(); }
+      else resolve(results);
+    };
+  });
+}
+
+function addWord(originalText, translatedText) {
+  return new Promise((resolve) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    store.add({ originalText: originalText.trim(), translatedText: translatedText.trim(), createdAt: Date.now() });
+    tx.oncomplete = () => resolve();
+  });
+}
+
+function deleteWord(id) {
+  return new Promise((resolve) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(id);
+    tx.oncomplete = () => resolve();
+  });
+}
+
+async function translate(text) {
+  const resp = await fetch(
+    `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|zh-CN`
+  );
+  const data = await resp.json();
+  if (data.responseStatus !== 200) throw new Error('翻译失败');
+  return data.responseData.translatedText;
+}
+
+function showToast(msg, ok = true) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.style.background = ok ? '#2E7D32' : '#555';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2300);
+}
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+async function renderList() {
+  const words = await getAll();
+  const list = document.getElementById('list');
+  const count = document.getElementById('count');
+  count.textContent = words.length ? `${words.length} 条` : '';
+  if (!words.length) {
+    list.innerHTML = '<div class="empty">还没有单词<br><br>在网页中长按文字 → 分享 → 选择「单词本」</div>';
+    return;
+  }
+  list.innerHTML = words.map(w => `
+    <div class="word-card" data-id="${w.id}" onclick="toggleDel(this)">
+      <div class="original">${esc(w.originalText)}</div>
+      <div class="translation">${esc(w.translatedText)}</div>
+      <div class="meta">
+        <span class="time">${formatTime(w.createdAt)}</span>
+        <button class="del-btn" onclick="event.stopPropagation(); doDelete(${w.id})">删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function esc(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function toggleDel(card) {
+  card.classList.toggle('show-del');
+}
+
+async function doDelete(id) {
+  await deleteWord(id);
+  await renderList();
+  showToast('已删除', false);
+}
+
+async function handleSharedText(text) {
+  const bar = document.getElementById('progressBar');
+  bar.classList.add('active');
+  try {
+    const translated = await translate(text);
+    await addWord(text, translated);
+    await renderList();
+    showToast('已保存');
+  } catch (e) {
+    showToast('翻译失败: ' + e.message, false);
+  } finally {
+    bar.classList.remove('active');
+  }
+}
+
+async function init() {
+  await openDB();
+  await renderList();
+
+  // Check for shared text from Web Share Target
+  const params = new URLSearchParams(location.search);
+  const sharedText = params.get('text') || params.get('title');
+  if (sharedText && sharedText.trim()) {
+    history.replaceState(null, '', location.pathname);
+    handleSharedText(sharedText);
+  }
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+
+init();
+</script>
+</body>
+</html>
