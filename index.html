@@ -29,6 +29,22 @@
     align-items: center;
   }
   .header .count { font-size: 13px; font-weight: 400; opacity: .7; }
+  .input-bar {
+    position: sticky; top: 52px; z-index: 9;
+    background: #fff; padding: 10px 16px;
+    border-bottom: 1px solid #eee;
+    display: flex; gap: 10px;
+  }
+  .input-bar input {
+    flex: 1; border: 1px solid #ddd; border-radius: 20px;
+    padding: 10px 16px; font-size: 15px; outline: none;
+  }
+  .input-bar input:focus { border-color: #4A90D9; }
+  .input-bar button {
+    background: #1A1A2E; color: #fff; border: none;
+    border-radius: 20px; padding: 10px 20px; font-size: 14px;
+    white-space: nowrap;
+  }
   .container { max-width: 600px; margin: 0 auto; padding: 12px 16px 80px; }
   .empty {
     text-align: center;
@@ -97,11 +113,10 @@
   .word-card.show-del .del-btn { display: block; }
   .progress {
     height: 3px; background: #E0E0E0;
-    position: sticky; top: 52px; z-index: 9;
+    position: sticky; top: 104px; z-index: 9;
   }
   .progress-bar {
     height: 100%; background: #4A90D9;
-    transition: width .3s;
     display: none;
   }
   .progress-bar.active { display: block; width: 100%; animation: progress 1.5s ease-in-out infinite; }
@@ -114,12 +129,16 @@
   <span>单词本</span>
   <span class="count" id="count"></span>
 </header>
+<div class="input-bar">
+  <input id="manualInput" type="text" placeholder="粘贴英文或中文单词..." enterkeyhint="done">
+  <button onclick="addManual()">保存</button>
+</div>
 <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
 <main class="container" id="list"></main>
 
 <script>
 const DB_NAME = 'vocab_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'words';
 
 let db;
@@ -128,10 +147,10 @@ function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('createdAt', 'createdAt', { unique: false });
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(STORE_NAME)) {
+        const s = d.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        s.createIndex('createdAt', 'createdAt', { unique: false });
       }
     };
     req.onsuccess = (e) => { db = e.target.result; resolve(db); };
@@ -142,8 +161,8 @@ function openDB() {
 function getAll() {
   return new Promise((resolve) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const idx = store.index('createdAt');
+    const s = tx.objectStore(STORE_NAME);
+    const idx = s.index('createdAt');
     const req = idx.openCursor(null, 'prev');
     const results = [];
     req.onsuccess = (e) => {
@@ -157,8 +176,11 @@ function getAll() {
 function addWord(originalText, translatedText) {
   return new Promise((resolve) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.add({ originalText: originalText.trim(), translatedText: translatedText.trim(), createdAt: Date.now() });
+    tx.objectStore(STORE_NAME).add({
+      originalText: originalText.trim(),
+      translatedText: translatedText.trim(),
+      createdAt: Date.now()
+    });
     tx.oncomplete = () => resolve();
   });
 }
@@ -171,19 +193,25 @@ function deleteWord(id) {
   });
 }
 
+// Auto-detect language: has Chinese char → zh|en, otherwise → en|zh-CN
+function hasChinese(text) {
+  return /[一-鿿]/.test(text);
+}
+
 async function translate(text) {
+  const langpair = hasChinese(text) ? 'zh|en' : 'en|zh-CN';
   const resp = await fetch(
-    `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|zh-CN`
+    `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langpair}`
   );
   const data = await resp.json();
   if (data.responseStatus !== 200) throw new Error('翻译失败');
   return data.responseData.translatedText;
 }
 
-function showToast(msg, ok = true) {
+function showToast(msg, ok) {
   const el = document.createElement('div');
   el.className = 'toast';
-  el.style.background = ok ? '#2E7D32' : '#555';
+  el.style.background = ok ? '#2E7D32' : '#C62828';
   el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 2300);
@@ -210,7 +238,7 @@ async function renderList() {
       <div class="translation">${esc(w.translatedText)}</div>
       <div class="meta">
         <span class="time">${formatTime(w.createdAt)}</span>
-        <button class="del-btn" onclick="event.stopPropagation(); doDelete(${w.id})">删除</button>
+        <button class="del-btn" onclick="event.stopPropagation();doDelete(${w.id})">删除</button>
       </div>
     </div>
   `).join('');
@@ -239,7 +267,7 @@ async function handleSharedText(text) {
     const translated = await translate(text);
     await addWord(text, translated);
     await renderList();
-    showToast('已保存');
+    showToast('已保存', true);
   } catch (e) {
     showToast('翻译失败: ' + e.message, false);
   } finally {
@@ -247,17 +275,47 @@ async function handleSharedText(text) {
   }
 }
 
+async function addManual() {
+  const input = document.getElementById('manualInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  handleSharedText(text);
+}
+
+// Enter key on input
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('manualInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addManual();
+  });
+});
+
+function getSharedTextFromURL() {
+  const search = location.search;
+  if (!search) return null;
+  const params = new URLSearchParams(search);
+  let text = params.get('text') || params.get('title') || '';
+  // Try to clean up URL-encoded text
+  try { text = decodeURIComponent(text); } catch(e) {}
+  return text.trim() || null;
+}
+
+async function processSharedText() {
+  const text = getSharedTextFromURL();
+  if (text) {
+    // Clear URL params so we don't re-process on refresh
+    history.replaceState(null, '', location.pathname);
+    handleSharedText(text);
+  }
+}
+
 async function init() {
   await openDB();
   await renderList();
+  processSharedText();
 
-  // Check for shared text from Web Share Target
-  const params = new URLSearchParams(location.search);
-  const sharedText = params.get('text') || params.get('title');
-  if (sharedText && sharedText.trim()) {
-    history.replaceState(null, '', location.pathname);
-    handleSharedText(sharedText);
-  }
+  // Also handle when PWA is already open and gets a new share
+  window.addEventListener('pageshow', processSharedText);
 }
 
 if ('serviceWorker' in navigator) {
