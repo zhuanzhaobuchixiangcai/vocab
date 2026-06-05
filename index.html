@@ -294,16 +294,14 @@ function getSharedTextFromURL() {
   const search = location.search;
   if (!search) return null;
   const params = new URLSearchParams(search);
-  let text = params.get('text') || params.get('title') || '';
-  // Try to clean up URL-encoded text
-  try { text = decodeURIComponent(text); } catch(e) {}
-  return text.trim() || null;
+  // SW strips title & url; only clean "text" arrives
+  const text = (params.get('text') || '').trim();
+  return text || null;
 }
 
 async function processSharedText() {
   const text = getSharedTextFromURL();
   if (text) {
-    // Clear URL params so we don't re-process on refresh
     history.replaceState(null, '', location.pathname);
     handleSharedText(text);
   }

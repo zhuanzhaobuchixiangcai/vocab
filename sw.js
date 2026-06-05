@@ -1,4 +1,4 @@
-const CACHE = 'vocab-v3';
+const CACHE = 'vocab-v4';
 const ASSETS = [
   '/vocab/',
   '/vocab/index.html',
@@ -9,9 +9,32 @@ const ASSETS = [
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
+  self.skipWaiting();
 });
 
+self.addEventListener('activate', (e) => {
+  e.waitUntil(self.clients.claim());
+});
+
+// Handle Web Share Target POST
 self.addEventListener('fetch', (e) => {
+  const url = new URL(e.request.url);
+
+  // Intercept share target POST request
+  if (e.request.method === 'POST' && url.pathname.startsWith('/vocab/')) {
+    e.respondWith(
+      (async () => {
+        const formData = await e.request.formData();
+        // Only take the "text" field (selected text), ignore title/url
+        const text = (formData.get('text') || '').toString().trim();
+        const redirectURL = '/vocab/' + (text ? '?text=' + encodeURIComponent(text) : '');
+        return Response.redirect(redirectURL, 303);
+      })()
+    );
+    return;
+  }
+
+  // Normal GET caching
   if (e.request.method !== 'GET') return;
   e.respondWith(
     caches.match(e.request).then((cached) =>
