@@ -309,8 +309,8 @@ async function init(){
       orientation:'portrait',
       icons:[{src:'/vocab/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any maskable'},
              {src:'/vocab/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}],
-      share_target:{action:'/vocab/',method:'POST',enctype:'multipart/form-data',
-        params:{title:'title',text:'text',url:'url'}}
+      share_target:{action:'/vocab/',method:'GET',enctype:'application/x-www-form-urlencoded',
+        params:{text:'text'}}
     })],{type:'application/manifest+json'});
     const old=document.querySelector('link[rel="manifest"]');
     if(old)old.remove();
