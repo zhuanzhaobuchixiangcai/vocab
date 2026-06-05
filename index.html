@@ -7,120 +7,77 @@
 <title>单词本</title>
 <link rel="manifest" href="manifest.json">
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #F5F5F5;
-    color: #1A1A2E;
-    -webkit-tap-highlight-color: transparent;
-    overscroll-behavior: none;
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:#F5F5F5;color:#1A1A2E;-webkit-tap-highlight-color:transparent;
+    overscroll-behavior:none;
   }
-  .header {
-    background: #1A1A2E;
-    color: #fff;
-    padding: 16px 20px;
-    font-size: 20px;
-    font-weight: 700;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  .header{
+    background:#1A1A2E;color:#fff;padding:14px 18px;font-size:18px;font-weight:700;
+    position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;
   }
-  .header .count { font-size: 13px; font-weight: 400; opacity: .7; }
-  .input-bar {
-    position: sticky; top: 52px; z-index: 9;
-    background: #fff; padding: 10px 16px;
-    border-bottom: 1px solid #eee;
-    display: flex; gap: 10px;
+  .header .count{font-size:12px;font-weight:400;opacity:.7}
+  .status-bar{
+    position:sticky;top:50px;z-index:9;
+    background:#fff;padding:6px 16px;font-size:11px;
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    border-bottom:1px solid #eee;min-height:30px;
   }
-  .input-bar input {
-    flex: 1; border: 1px solid #ddd; border-radius: 20px;
-    padding: 10px 16px; font-size: 15px; outline: none;
+  .status-bar .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .status-bar .ok{background:#2E7D32}
+  .status-bar .fail{background:#C62828}
+  .status-bar .warn{background:#E65100}
+  .status-bar .install-btn{
+    background:#1A1A2E;color:#fff;border:none;border-radius:12px;
+    padding:4px 14px;font-size:12px;margin-left:auto;display:none;
   }
-  .input-bar input:focus { border-color: #4A90D9; }
-  .input-bar button {
-    background: #1A1A2E; color: #fff; border: none;
-    border-radius: 20px; padding: 10px 20px; font-size: 14px;
-    white-space: nowrap;
+  .status-bar .install-btn.show{display:inline-block}
+  .input-bar{
+    position:sticky;top:80px;z-index:9;
+    background:#fff;padding:8px 16px;border-bottom:1px solid #eee;
+    display:flex;gap:8px;
   }
-  .container { max-width: 600px; margin: 0 auto; padding: 12px 16px 80px; }
-  .empty {
-    text-align: center;
-    color: #999;
-    padding: 80px 32px;
-    font-size: 15px;
-    line-height: 1.8;
+  .input-bar input{
+    flex:1;border:1px solid #ddd;border-radius:20px;
+    padding:8px 14px;font-size:14px;outline:none;
   }
-  .toast {
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-    padding: 10px 24px; border-radius: 20px; color: #fff; font-size: 14px;
-    z-index: 100; pointer-events: none;
-    animation: fadeInOut 2.2s ease forwards;
+  .input-bar input:focus{border-color:#4A90D9}
+  .input-bar button{
+    background:#1A1A2E;color:#fff;border:none;
+    border-radius:20px;padding:8px 18px;font-size:13px;white-space:nowrap;
   }
-  @keyframes fadeInOut {
-    0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
-    15% { opacity: 1; transform: translateX(-50%) translateY(0); }
-    80% { opacity: 1; }
-    100% { opacity: 0; }
+  .container{max-width:600px;margin:0 auto;padding:10px 16px 80px}
+  .empty{text-align:center;color:#999;padding:80px 32px;font-size:15px;line-height:1.8}
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    padding:10px 24px;border-radius:20px;color:#fff;font-size:14px;
+    z-index:100;pointer-events:none;
+    animation:fadeInOut 2.2s ease forwards;
   }
-  .word-card {
-    background: #fff;
-    border-radius: 10px;
-    padding: 14px 16px;
-    margin-bottom: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.06);
-    cursor: pointer;
-    transition: background .2s;
-    position: relative;
-    overflow: hidden;
+  @keyframes fadeInOut{
+    0%{opacity:0;transform:translateX(-50%) translateY(10px)}
+    15%{opacity:1;transform:translateX(-50%) translateY(0)}
+    80%{opacity:1}
+    100%{opacity:0}
   }
-  .word-card:active { background: #f0f0f0; }
-  .word-card .original {
-    font-size: 18px;
-    font-weight: 600;
-    color: #1A1A2E;
-    line-height: 1.5;
-    word-break: break-word;
+  .word-card{
+    background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:8px;
+    box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;transition:background .2s;
   }
-  .word-card .translation {
-    font-size: 15px;
-    color: #555;
-    margin-top: 6px;
-    line-height: 1.5;
-    word-break: break-word;
+  .word-card:active{background:#f0f0f0}
+  .word-card .original{font-size:17px;font-weight:600;color:#1A1A2E;line-height:1.5;word-break:break-word}
+  .word-card .translation{font-size:14px;color:#555;margin-top:6px;line-height:1.5;word-break:break-word}
+  .word-card .meta{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+  .word-card .time{font-size:11px;color:#bbb}
+  .word-card .del-btn{
+    background:#C62828;color:#fff;border:none;padding:6px 16px;
+    border-radius:14px;font-size:13px;display:none;
   }
-  .word-card .meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 10px;
-  }
-  .word-card .time {
-    font-size: 11px;
-    color: #bbb;
-  }
-  .word-card .del-btn {
-    background: #C62828;
-    color: #fff;
-    border: none;
-    padding: 6px 16px;
-    border-radius: 14px;
-    font-size: 13px;
-    display: none;
-  }
-  .word-card.show-del .del-btn { display: block; }
-  .progress {
-    height: 3px; background: #E0E0E0;
-    position: sticky; top: 104px; z-index: 9;
-  }
-  .progress-bar {
-    height: 100%; background: #4A90D9;
-    display: none;
-  }
-  .progress-bar.active { display: block; width: 100%; animation: progress 1.5s ease-in-out infinite; }
-  @keyframes progress { 0% { width: 0; } 50% { width: 70%; } 100% { width: 100%; } }
+  .word-card.show-del .del-btn{display:block}
+  .progress-bar{height:3px;background:#4A90D9;position:sticky;top:114px;z-index:9;display:none}
+  .progress-bar.active{display:block;animation:progress 1.5s ease-in-out infinite}
+  @keyframes progress{0%{width:0}50%{width:70%}100%{width:100%}}
 </style>
 </head>
 <body>
@@ -129,110 +86,99 @@
   <span>单词本</span>
   <span class="count" id="count"></span>
 </header>
+
+<div class="status-bar" id="statusBar">
+  <span id="stManifest"><span class="dot warn"></span> manifest</span>
+  <span id="stSW"><span class="dot warn"></span> SW</span>
+  <button class="install-btn" id="btnInstall" onclick="doInstall()">点我安装</button>
+</div>
+
 <div class="input-bar">
-  <input id="manualInput" type="text" placeholder="粘贴英文或中文单词..." enterkeyhint="done">
+  <input id="manualInput" type="text" placeholder="粘贴单词..." enterkeyhint="done">
   <button onclick="addManual()">保存</button>
 </div>
-<div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<div class="progress-bar" id="progressBar"></div>
 <main class="container" id="list"></main>
 
 <script>
-const DB_NAME = 'vocab_db';
-const DB_VERSION = 2;
-const STORE_NAME = 'words';
-
+// ======== IndexedDB ========
+const DB_NAME='vocab_db',DB_VERSION=3,STORE_NAME='words';
 let db;
 
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = (e) => {
-      const d = e.target.result;
-      if (!d.objectStoreNames.contains(STORE_NAME)) {
-        const s = d.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-        s.createIndex('createdAt', 'createdAt', { unique: false });
-      }
-    };
-    req.onsuccess = (e) => { db = e.target.result; resolve(db); };
-    req.onerror = () => reject(req.error);
-  });
-}
+function openDB(){return new Promise((resolve,reject)=>{
+  const req=indexedDB.open(DB_NAME,DB_VERSION);
+  req.onupgradeneeded=(e)=>{
+    const d=e.target.result;
+    if(!d.objectStoreNames.contains(STORE_NAME)){
+      const s=d.createObjectStore(STORE_NAME,{keyPath:'id',autoIncrement:true});
+      s.createIndex('createdAt','createdAt',{unique:false});
+    }
+  };
+  req.onsuccess=(e)=>{db=e.target.result;resolve(db)};
+  req.onerror=()=>reject(req.error);
+})}
 
-function getAll() {
-  return new Promise((resolve) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const s = tx.objectStore(STORE_NAME);
-    const idx = s.index('createdAt');
-    const req = idx.openCursor(null, 'prev');
-    const results = [];
-    req.onsuccess = (e) => {
-      const cursor = e.target.result;
-      if (cursor) { results.push(cursor.value); cursor.continue(); }
-      else resolve(results);
-    };
-  });
-}
+function getAll(){return new Promise((resolve)=>{
+  const tx=db.transaction(STORE_NAME,'readonly');
+  const s=tx.objectStore(STORE_NAME);
+  const idx=s.index('createdAt');
+  const req=idx.openCursor(null,'prev');
+  const results=[];
+  req.onsuccess=(e)=>{
+    const c=e.target.result;
+    if(c){results.push(c.value);c.continue()}else resolve(results)
+  }
+})}
 
-function addWord(originalText, translatedText) {
-  return new Promise((resolve) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).add({
-      originalText: originalText.trim(),
-      translatedText: translatedText.trim(),
-      createdAt: Date.now()
-    });
-    tx.oncomplete = () => resolve();
-  });
-}
+function addWord(o,t){return new Promise((resolve)=>{
+  const tx=db.transaction(STORE_NAME,'readwrite');
+  tx.objectStore(STORE_NAME).add({originalText:o.trim(),translatedText:t.trim(),createdAt:Date.now()});
+  tx.oncomplete=()=>resolve()
+})}
 
-function deleteWord(id) {
-  return new Promise((resolve) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).delete(id);
-    tx.oncomplete = () => resolve();
-  });
-}
+function deleteWord(id){return new Promise((resolve)=>{
+  const tx=db.transaction(STORE_NAME,'readwrite');
+  tx.objectStore(STORE_NAME).delete(id);
+  tx.oncomplete=()=>resolve()
+})}
 
-// Auto-detect language: has Chinese char → zh|en, otherwise → en|zh-CN
-function hasChinese(text) {
-  return /[一-鿿]/.test(text);
-}
+// ======== Translation ========
+function hasChinese(t){return /[一-鿿]/.test(t)}
 
-async function translate(text) {
-  const langpair = hasChinese(text) ? 'zh|en' : 'en|zh-CN';
-  const resp = await fetch(
-    `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langpair}`
-  );
-  const data = await resp.json();
-  if (data.responseStatus !== 200) throw new Error('翻译失败');
+async function translate(text){
+  const lp=hasChinese(text)?'zh|en':'en|zh-CN';
+  const resp=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${lp}`);
+  const data=await resp.json();
+  if(data.responseStatus!==200)throw new Error('翻译失败');
   return data.responseData.translatedText;
 }
 
-function showToast(msg, ok) {
-  const el = document.createElement('div');
-  el.className = 'toast';
-  el.style.background = ok ? '#2E7D32' : '#C62828';
-  el.textContent = msg;
+// ======== UI ========
+function showToast(msg,ok){
+  const el=document.createElement('div');
+  el.className='toast';
+  el.style.background=ok?'#2E7D32':'#C62828';
+  el.textContent=msg;
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 2300);
+  setTimeout(()=>el.remove(),2300);
 }
 
-function formatTime(ts) {
-  const d = new Date(ts);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function formatTime(ts){
+  const d=new Date(ts),p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-async function renderList() {
-  const words = await getAll();
-  const list = document.getElementById('list');
-  const count = document.getElementById('count');
-  count.textContent = words.length ? `${words.length} 条` : '';
-  if (!words.length) {
-    list.innerHTML = '<div class="empty">还没有单词<br><br>在网页中长按文字 → 分享 → 选择「单词本」</div>';
+async function renderList(){
+  const words=await getAll();
+  const list=document.getElementById('list');
+  const count=document.getElementById('count');
+  count.textContent=words.length?words.length+' 条':'';
+  if(!words.length){
+    list.innerHTML='<div class="empty">还没有单词<br><br>在网页中长按文字 → 分享 → 选择「单词本」</div>';
     return;
   }
-  list.innerHTML = words.map(w => `
+  list.innerHTML=words.map(w=>`
     <div class="word-card" data-id="${w.id}" onclick="toggleDel(this)">
       <div class="original">${esc(w.originalText)}</div>
       <div class="translation">${esc(w.translatedText)}</div>
@@ -244,80 +190,137 @@ async function renderList() {
   `).join('');
 }
 
-function esc(s) {
-  const div = document.createElement('div');
-  div.textContent = s;
-  return div.innerHTML;
-}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function toggleDel(c){c.classList.toggle('show-del')}
 
-function toggleDel(card) {
-  card.classList.toggle('show-del');
-}
+async function doDelete(id){await deleteWord(id);await renderList();showToast('已删除',false)}
 
-async function doDelete(id) {
-  await deleteWord(id);
-  await renderList();
-  showToast('已删除', false);
-}
-
-async function handleSharedText(text) {
-  const bar = document.getElementById('progressBar');
+async function handleSharedText(text){
+  const bar=document.getElementById('progressBar');
   bar.classList.add('active');
-  try {
-    const translated = await translate(text);
-    await addWord(text, translated);
+  try{
+    const translated=await translate(text);
+    await addWord(text,translated);
     await renderList();
-    showToast('已保存', true);
-  } catch (e) {
-    showToast('翻译失败: ' + e.message, false);
-  } finally {
-    bar.classList.remove('active');
-  }
+    showToast('已保存',true);
+  }catch(e){
+    showToast('翻译失败: '+e.message,false);
+  }finally{bar.classList.remove('active')}
 }
 
-async function addManual() {
-  const input = document.getElementById('manualInput');
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
+async function addManual(){
+  const input=document.getElementById('manualInput');
+  const text=input.value.trim();
+  if(!text)return;
+  input.value='';
   handleSharedText(text);
 }
 
-// Enter key on input
-document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('manualInput').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') addManual();
-  });
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('manualInput').addEventListener('keydown',e=>{if(e.key==='Enter')addManual()});
 });
 
-function getSharedTextFromURL() {
-  const search = location.search;
-  if (!search) return null;
-  const params = new URLSearchParams(search);
-  // SW strips title & url; only clean "text" arrives
-  const text = (params.get('text') || '').trim();
-  return text || null;
+// ======== Shared text from URL ========
+function getSharedText(){
+  const s=location.search;if(!s)return null;
+  const text=(new URLSearchParams(s).get('text')||'').trim();
+  return text||null;
+}
+async function processShared(){
+  const text=getSharedText();if(text){history.replaceState(null,'',location.pathname);handleSharedText(text)}
 }
 
-async function processSharedText() {
-  const text = getSharedTextFromURL();
-  if (text) {
-    history.replaceState(null, '', location.pathname);
-    handleSharedText(text);
+// ======== PWA Install ========
+let deferredPrompt=null;
+
+function updateStatus(id,ok){
+  const el=document.getElementById(id);
+  const dot=el.querySelector('.dot');
+  dot.className='dot '+(ok?'ok':'fail');
+}
+
+async function checkManifest(){
+  try{
+    const resp=await fetch('manifest.json');
+    if(resp.ok){updateStatus('stManifest',true);return true}
+  }catch(e){}
+  updateStatus('stManifest',false);
+  return false;
+}
+
+async function checkSW(){
+  if(!('serviceWorker' in navigator)){updateStatus('stSW',false);return false}
+  try{
+    const reg=await navigator.serviceWorker.getRegistration();
+    if(reg&&reg.active){updateStatus('stSW',true);return true}
+    // Try registering
+    const newReg=await navigator.serviceWorker.register('/vocab/sw.js',{scope:'/vocab/'});
+    await newReg.installing||await navigator.serviceWorker.ready;
+    updateStatus('stSW',true);
+    return true;
+  }catch(e){}
+  updateStatus('stSW',false);
+  return false;
+}
+
+function doInstall(){
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(r=>{
+      if(r.outcome==='accepted'){showToast('安装成功！',true);document.getElementById('btnInstall').classList.remove('show')}
+      else showToast('已取消',false);
+      deferredPrompt=null;
+    });
+  }else{
+    showToast('请用浏览器菜单「添加到主屏幕」',false);
   }
 }
 
-async function init() {
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  deferredPrompt=e;
+  document.getElementById('btnInstall').classList.add('show');
+});
+
+window.addEventListener('appinstalled',()=>{
+  showToast('安装成功！',true);
+  document.getElementById('btnInstall').classList.remove('show');
+  deferredPrompt=null;
+});
+
+// ======== Init ========
+async function init(){
   await openDB();
   await renderList();
-  processSharedText();
 
-  // Also handle when PWA is already open and gets a new share
-  window.addEventListener('pageshow', processSharedText);
-}
+  // Check PWA readiness
+  checkManifest();
+  checkSW();
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/vocab/sw.js', {scope: '/vocab/'});
+  // If manifest fails to load, try inline blob as fallback
+  try{
+    const mr=await fetch('manifest.json');
+    if(!mr.ok)throw new Error();
+  }catch(e){
+    // Create inline manifest
+    const blob=new Blob([JSON.stringify({
+      name:'单词本',short_name:'单词本',start_url:'/vocab/',scope:'/vocab/',
+      display:'standalone',background_color:'#F5F5F5',theme_color:'#1A1A2E',
+      orientation:'portrait',
+      icons:[{src:'/vocab/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any maskable'},
+             {src:'/vocab/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}],
+      share_target:{action:'/vocab/',method:'POST',enctype:'multipart/form-data',
+        params:{title:'title',text:'text',url:'url'}}
+    })],{type:'application/manifest+json'});
+    const old=document.querySelector('link[rel="manifest"]');
+    if(old)old.remove();
+    const link=document.createElement('link');
+    link.rel='manifest';link.href=URL.createObjectURL(blob);
+    document.head.appendChild(link);
+  }
+
+  processShared();
+  window.addEventListener('pageshow',processShared);
 }
 
 init();
