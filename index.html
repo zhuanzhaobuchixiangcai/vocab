@@ -47,51 +47,76 @@ body{font-family:-apple-system,sans-serif;background:#F5F5F5;color:#1A1A2E}
 <main class="list" id="list"></main>
 
 <script>
-const VER = 'v3'; // version check
+const VER = 'v4';
 console.log('[单词本]', VER);
 
-// ========== Database ==========
-const DB='vdb', ST='w';
+// ========== Storage (IndexedDB with localStorage fallback) ==========
+const DB='vdb', ST='w', USE_IDB=!!window.indexedDB;
 let db;
+
 function openDB(){
+  if(!USE_IDB) return Promise.resolve(); // will use localStorage
   return new Promise((resolve,reject)=>{
     const r=indexedDB.open(DB,1);
     r.onupgradeneeded=e=>{
       const d=e.target.result;
       if(!d.objectStoreNames.contains(ST)){
-        const s=d.createObjectStore(ST,{keyPath:'id',autoIncrement:true});
-        s.createIndex('ts','ts',{unique:false});
+        d.createObjectStore(ST,{keyPath:'id',autoIncrement:true}).createIndex('ts','ts',{unique:false});
       }
     };
     r.onsuccess=e=>{db=e.target.result;resolve(db)};
-    r.onerror=()=>reject(r.error);
+    r.onerror=e=>reject(e.target.error||new Error('IndexedDB 打不开'));
+    r.onblocked=()=>reject(new Error('IndexedDB 被其他标签页阻塞'));
   });
+}
+
+function lsGet(){
+  try{return JSON.parse(localStorage.getItem(DB)||'[]')}catch(e){return[]}
+}
+function lsSet(a){
+  try{localStorage.setItem(DB,JSON.stringify(a))}catch(e){}
 }
 
 function getAll(){
-  return new Promise(resolve=>{
-    const tx=db.transaction(ST,'readonly');
-    const idx=tx.objectStore(ST).index('ts');
-    const r=idx.openCursor(null,'prev');
-    const a=[];
-    r.onsuccess=e=>{const c=e.target.result;c?(a.push(c.value),c.continue()):resolve(a)};
-  });
+  if(USE_IDB){
+    return new Promise(resolve=>{
+      const tx=db.transaction(ST,'readonly');
+      const idx=tx.objectStore(ST).index('ts');
+      const r=idx.openCursor(null,'prev');
+      const a=[];
+      r.onsuccess=e=>{const c=e.target.result;c?(a.push(c.value),c.continue()):resolve(a)};
+      r.onerror=()=>resolve(lsGet()); // fallback to LS
+    });
+  }
+  return Promise.resolve(lsGet());
 }
 
 function addOne(orig, tran){
-  return new Promise(resolve=>{
-    const tx=db.transaction(ST,'readwrite');
-    tx.objectStore(ST).add({o:orig.trim(),t:tran.trim(),ts:Date.now()});
-    tx.oncomplete=()=>resolve();
-  });
+  const item={o:orig.trim(),t:tran.trim(),ts:Date.now()};
+  if(USE_IDB){
+    return new Promise(resolve=>{
+      const tx=db.transaction(ST,'readwrite');
+      tx.objectStore(ST).add(item);
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>{ // fallback to LS
+        const a=lsGet();item.id=(a.reduce((m,w)=>Math.max(m,w.id||0),0)+1);a.push(item);lsSet(a);resolve();
+      };
+    });
+  }
+  const a=lsGet();item.id=(a.reduce((m,w)=>Math.max(m,w.id||0),0)+1);a.push(item);lsSet(a);
+  return Promise.resolve();
 }
 
 function delOne(id){
-  return new Promise(resolve=>{
-    const tx=db.transaction(ST,'readwrite');
-    tx.objectStore(ST).delete(id);
-    tx.oncomplete=()=>resolve();
-  });
+  if(USE_IDB){
+    return new Promise(resolve=>{
+      const tx=db.transaction(ST,'readwrite');
+      tx.objectStore(ST).delete(id);
+      tx.oncomplete=()=>resolve();
+    });
+  }
+  const a=lsGet().filter(w=>w.id!==id);lsSet(a);
+  return Promise.resolve();
 }
 
 // ========== Translation ==========
@@ -243,8 +268,17 @@ if('serviceWorker' in navigator){
 // ========== Init ==========
 (async function(){
   try{
+    // Quick self-check
+    const info = [
+      VER,
+      'IDB:'+(window.indexedDB?'✓':'✗'),
+      'LS:'+(window.localStorage?'✓':'✗'),
+      navigator.onLine?'online':'offline'
+    ];
+    console.log('[单词本] init:', info.join(' '));
+
     await openDB();
-    console.log('[单词本] DB ready');
+    console.log('[单词本] DB ready (IDB mode:', USE_IDB, ')');
     await render();
     console.log('[单词本] rendered');
 
@@ -252,16 +286,12 @@ if('serviceWorker' in navigator){
     const shared=checkURL();
     if(shared){
       history.replaceState(null,'',location.pathname);
-      // Small delay so user sees the page first
       setTimeout(()=>save(shared),800);
     }
-
-    // Log manifest status
-    const m=document.querySelector('link[rel="manifest"]');
-    console.log('[单词本] manifest href:', m?m.href:'MISSING');
   }catch(e){
     console.error('[单词本] init error:', e);
-    document.getElementById('list').innerHTML='<div class="none">初始化失败<br>'+esc(e.message)+'<br><br>请刷新重试</div>';
+    const msg = (e&&e.message) || String(e||'未知错误');
+    document.getElementById('list').innerHTML='<div class="none">❌ 初始化失败<br><b style="color:#C62828">'+esc(msg)+'</b><br><br>请刷新重试<br><small style="color:#aaa">'+VER+' | '+navigator.userAgent.slice(0,40)+'</small></div>';
   }
 })();
 </script>
