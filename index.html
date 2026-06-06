@@ -10,11 +10,12 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,sans-serif;background:#F5F5F5;color:#1A1A2E}
 .top{background:#1A1A2E;color:#fff;padding:14px 18px;font-size:18px;font-weight:700;position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center}
-.top em{font-size:12px;font-weight:400;opacity:.7;font-style:normal}
+.top em{font-size:11px;font-weight:400;opacity:.6;font-style:normal}
 .bar{display:flex;gap:8px;padding:10px 14px;background:#fff;position:sticky;top:50px;z-index:9;border-bottom:1px solid #eee}
-.bar input{flex:1;border:1px solid #ddd;border-radius:20px;padding:10px 14px;font-size:15px;outline:none}
+.bar input{flex:1;border:1px solid #ddd;border-radius:20px;padding:10px 14px;font-size:15px;outline:none;min-width:0}
 .bar input:focus{border-color:#4A90D9}
-.bar button{background:#1A1A2E;color:#fff;border:none;border-radius:20px;padding:10px 22px;font-size:14px;white-space:nowrap}
+.bar button{background:#1A1A2E;color:#fff;border:none;border-radius:20px;padding:10px 16px;font-size:14px;white-space:nowrap}
+.bar button.clip{background:#fff;color:#1A1A2E;border:1.5px solid #1A1A2E;padding:10px 14px}
 .load{height:3px;background:#4A90D9;position:sticky;top:100px;z-index:9;display:none}
 .load.on{display:block;animation:load 1.5s ease-in-out infinite}
 @keyframes load{0%{width:0}50%{width:70%}100%{width:100%}}
@@ -38,13 +39,17 @@ body{font-family:-apple-system,sans-serif;background:#F5F5F5;color:#1A1A2E}
 
 <div class="bar">
   <input id="inp" type="text" placeholder="输入或粘贴单词 / 短语 / 句子..." enterkeyhint="done">
-  <button onclick="doAdd()">保存</button>
+  <button class="clip" id="btnPaste" title="从剪贴板读取">📋</button>
+  <button id="btnSave">保存</button>
 </div>
 
 <div class="load" id="load"></div>
 <main class="list" id="list"></main>
 
 <script>
+const VER = 'v3'; // version check
+console.log('[单词本]', VER);
+
 // ========== Database ==========
 const DB='vdb', ST='w';
 let db;
@@ -94,9 +99,13 @@ function isChinese(s){return /[一-鿿]/.test(s)}
 
 async function translate(text){
   const lp=isChinese(text)?'zh|en':'en|zh-CN';
-  const resp=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+lp);
+  const url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+lp;
+  console.log('[单词本] translate:', text, '→ langpair:', lp);
+  const resp=await fetch(url);
+  if (!resp.ok) throw new Error('网络错误 ' + resp.status);
   const json=await resp.json();
-  if(json.responseStatus!==200)throw new Error('翻译失败');
+  console.log('[单词本] response:', json);
+  if (json.responseStatus !== 200) throw new Error('翻译失败 (' + (json.responseStatus||'?') + ')');
   return json.responseData.translatedText;
 }
 
@@ -120,9 +129,9 @@ function esc(s){const d=document.createElement('div');d.textContent=s;return d.i
 async function render(){
   const words=await getAll();
   const list=document.getElementById('list'), cnt=document.getElementById('cnt');
-  cnt.textContent=words.length?words.length+' 条':'';
+  cnt.textContent=(words.length?words.length+' 条 | ':'')+VER;
   if(!words.length){
-    list.innerHTML='<div class="none">还没有单词<br><br>输入或粘贴英语单词 → 点保存</div>';
+    list.innerHTML='<div class="none">还没有单词<br><br>📋 复制单词 → 打开本页点 📋 按钮<br>或直接输入英语单词 → 点保存</div>';
     return;
   }
   list.innerHTML=words.map(w=>`
@@ -143,9 +152,11 @@ async function save(text){
     const translated=await translate(text);
     await addOne(text,translated);
     await render();
-    toast('已保存',true);
+    document.getElementById('inp').value='';
+    toast('已保存: '+translated,true);
   }catch(e){
-    toast('翻译失败: '+e.message,false);
+    console.error('[单词本] save error:', e);
+    toast('保存失败: '+e.message,false);
   }
   load.classList.remove('on');
 }
@@ -161,29 +172,96 @@ function doAdd(){
 // Enter key
 document.getElementById('inp').addEventListener('keydown',e=>{if(e.key==='Enter')doAdd()});
 
+// Save button
+document.getElementById('btnSave').addEventListener('click',doAdd);
+
+// ========== Clipboard ==========
+async function pasteFromClipboard(){
+  const btn=document.getElementById('btnPaste');
+  try{
+    // Try modern clipboard API first
+    const text=await navigator.clipboard.readText();
+    if(text&&text.trim()){
+      document.getElementById('inp').value=text.trim();
+      toast('已读取剪贴板内容 ✓',true);
+      // Auto-save after a beat
+      setTimeout(()=>{
+        if(document.getElementById('inp').value===text.trim()){
+          doAdd();
+        }
+      },500);
+    }else{
+      toast('剪贴板为空',false);
+    }
+  }catch(e){
+    console.warn('[单词本] clipboard read failed:', e);
+    // Fallback: focus input so user can long-press paste
+    const inp=document.getElementById('inp');
+    inp.focus();
+    inp.select();
+    toast('请长按输入框手动粘贴',false);
+  }
+}
+
+document.getElementById('btnPaste').addEventListener('click',pasteFromClipboard);
+
+// Also check clipboard on page focus (when user switches back from Chrome)
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){
+    console.log('[单词本] page visible, checking clipboard');
+    navigator.clipboard.readText().then(text=>{
+      if(text&&text.trim()){
+        const inp=document.getElementById('inp');
+        if(inp.value!==text.trim()){
+          inp.value=text.trim();
+          toast('检测到剪贴板内容，点保存添加',true);
+        }
+      }
+    }).catch(()=>{}); // silent fail — user might not have granted permission
+  }
+});
+
 // ========== Share Target (check URL params) ==========
 function checkURL(){
   const s=location.search;
   if(!s)return null;
   const p=new URLSearchParams(s);
-  return (p.get('s')||p.get('text')||'').trim()||null;
+  const text=(p.get('s')||p.get('text')||'').trim();
+  console.log('[单词本] share URL check:', text||'(empty)');
+  return text||null;
 }
 
 // ========== Service Worker ==========
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js',{scope:location.pathname.replace(/\/[^/]*$/,'/')});
+  const scope=location.pathname.replace(/\/[^/]*$/,'/');
+  console.log('[单词本] registering SW, scope:', scope);
+  navigator.serviceWorker.register('sw.js',{scope:scope})
+    .then(reg=>console.log('[单词本] SW registered:', reg.scope))
+    .catch(err=>console.error('[单词本] SW register fail:', err));
 }
 
 // ========== Init ==========
 (async function(){
-  await openDB();
-  await render();
+  try{
+    await openDB();
+    console.log('[单词本] DB ready');
+    await render();
+    console.log('[单词本] rendered');
 
-  // Handle shared text from URL
-  const shared=checkURL();
-  if(shared){
-    history.replaceState(null,'',location.pathname);
-    save(shared);
+    // Handle shared text from URL
+    const shared=checkURL();
+    if(shared){
+      history.replaceState(null,'',location.pathname);
+      // Small delay so user sees the page first
+      setTimeout(()=>save(shared),800);
+    }
+
+    // Log manifest status
+    const m=document.querySelector('link[rel="manifest"]');
+    console.log('[单词本] manifest href:', m?m.href:'MISSING');
+  }catch(e){
+    console.error('[单词本] init error:', e);
+    document.getElementById('list').innerHTML='<div class="none">初始化失败<br>'+esc(e.message)+'<br><br>请刷新重试</div>';
   }
 })();
 </script>

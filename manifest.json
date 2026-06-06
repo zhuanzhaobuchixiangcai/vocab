@@ -2,6 +2,7 @@
   "name": "单词本",
   "short_name": "单词本",
   "start_url": ".",
+  "scope": "/vocab/",
   "display": "standalone",
   "theme_color": "#1A1A2E",
   "background_color": "#F5F5F5",
