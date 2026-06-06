@@ -5,230 +5,188 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <meta name="theme-color" content="#1A1A2E">
 <title>单词本</title>
-<script>
-// ========== INLINE WORKER ==========
-const workerCode = `
-const CACHE = 'v1';
-const ASSETS = [location.pathname.replace(/\\/[^/]*$/, '/')];
-
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
-  self.skipWaiting();
-});
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
-self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
-  if (e.request.method === 'POST' && url.pathname === new URL(self.location).pathname) {
-    e.respondWith((async () => {
-      const fd = await e.request.formData();
-      const text = (fd.get('text') || '').toString().trim();
-      const path = self.location.pathname.replace(/\\/[^/]*$/, '/');
-      return Response.redirect(path + (text ? '?s=' + encodeURIComponent(text) : ''), 303);
-    })());
-    return;
-  }
-  if (e.request.method !== 'GET') return;
-  e.respondWith(caches.match(e.request).then(c => c || fetch(e.request)));
-});
-`;
-
-// ========== INLINE MANIFEST ==========
-const pagePath = location.pathname.replace(/\/[^/]*$/, '/');
-const manifest = {
-  name: '单词本',
-  short_name: '单词本',
-  start_url: '.',
-  display: 'standalone',
-  theme_color: '#1A1A2E',
-  background_color: '#F5F5F5',
-  icons: [{
-    src: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="80" fill="#1A1A2E"/><text x="256" y="320" font-size="280" font-family="sans-serif" font-weight="bold" fill="white" text-anchor="middle">词</text></svg>'),
-    sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable'
-  }],
-  share_target: {
-    action: '.',
-    method: 'POST',
-    enctype: 'multipart/form-data',
-    params: { text: 'text' }
-  }
-};
-
-// Inject manifest as blob
-const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
-const link = document.createElement('link');
-link.rel = 'manifest';
-link.href = URL.createObjectURL(blob);
-document.head.appendChild(link);
-
-// Register service worker (use external file, blob URLs not supported for SW)
-if ('serviceWorker' in navigator) {
-  // Unregister any old SWs first
-  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
-  // Register fresh
-  navigator.serviceWorker.register('sw.js', { scope: pagePath })
-    .then(() => console.log('[SW] ok'))
-    .catch(e => console.warn('[SW] fail:', e));
-}
-</script>
+<link rel="manifest" href="manifest.json">
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F5F5F5;color:#1A1A2E}
-.hdr{background:#1A1A2E;color:#fff;padding:14px 18px;font-size:18px;font-weight:700;position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center}
-.hdr .cnt{font-size:12px;font-weight:400;opacity:.7}
-.inp{position:sticky;top:50px;z-index:9;background:#fff;padding:8px 14px;border-bottom:1px solid #eee;display:flex;gap:8px}
-.inp input{flex:1;border:1px solid #ddd;border-radius:20px;padding:8px 14px;font-size:14px;outline:none}
-.inp input:focus{border-color:#4A90D9}
-.inp button{background:#1A1A2E;color:#fff;border:none;border-radius:20px;padding:8px 18px;font-size:13px;white-space:nowrap}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#F5F5F5;color:#1A1A2E}
+.top{background:#1A1A2E;color:#fff;padding:14px 18px;font-size:18px;font-weight:700;position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center}
+.top em{font-size:12px;font-weight:400;opacity:.7;font-style:normal}
+.bar{display:flex;gap:8px;padding:10px 14px;background:#fff;position:sticky;top:50px;z-index:9;border-bottom:1px solid #eee}
+.bar input{flex:1;border:1px solid #ddd;border-radius:20px;padding:10px 14px;font-size:15px;outline:none}
+.bar input:focus{border-color:#4A90D9}
+.bar button{background:#1A1A2E;color:#fff;border:none;border-radius:20px;padding:10px 22px;font-size:14px;white-space:nowrap}
+.load{height:3px;background:#4A90D9;position:sticky;top:100px;z-index:9;display:none}
+.load.on{display:block;animation:load 1.5s ease-in-out infinite}
+@keyframes load{0%{width:0}50%{width:70%}100%{width:100%}}
 .list{max-width:600px;margin:0 auto;padding:10px 14px 80px}
-.empty{text-align:center;color:#999;padding:80px 32px;font-size:15px;line-height:1.8}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 24px;border-radius:20px;color:#fff;font-size:14px;z-index:100;pointer-events:none;animation:fade 2.2s ease forwards}
-@keyframes fade{0%{opacity:0;transform:translateX(-50%) translateY(10px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}80%{opacity:1}100%{opacity:0}}
-.card{background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;transition:background .2s}
+.none{text-align:center;color:#999;padding:80px 20px;font-size:15px;line-height:1.8}
+.card{background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .card:active{background:#f0f0f0}
-.card .orig{font-size:17px;font-weight:600;color:#1A1A2E;line-height:1.5;word-break:break-word}
-.card .tran{font-size:14px;color:#555;margin-top:6px;line-height:1.5;word-break:break-word}
-.card .meta{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.card .o{font-size:17px;font-weight:600;color:#1A1A2E;line-height:1.5;word-break:break-word}
+.card .t{font-size:14px;color:#555;margin-top:6px;line-height:1.5;word-break:break-word}
+.card .row{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
 .card .time{font-size:11px;color:#bbb}
 .card .del{background:#C62828;color:#fff;border:none;padding:6px 16px;border-radius:14px;font-size:13px;display:none}
-.card.show .del{display:block}
-.bar{height:3px;background:#4A90D9;position:sticky;top:94px;z-index:9;display:none}
-.bar.on{display:block;animation:prog 1.5s ease-in-out infinite}
-@keyframes prog{0%{width:0}50%{width:70%}100%{width:100%}}
-#debug{position:sticky;top:50px;background:#FFF9C4;padding:4px 14px;font-size:11px;display:none;z-index:9;border-bottom:1px solid #F9A825}
-#debug.show{display:block}
+.card.open .del{display:block}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 24px;border-radius:20px;color:#fff;font-size:14px;z-index:100;pointer-events:none;animation:fade 2.2s ease forwards}
+@keyframes fade{0%{opacity:0;transform:translateX(-50%) translateY(10px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}80%{opacity:1}100%{opacity:0}}
 </style>
 </head>
 <body>
 
-<div class="hdr"><span>单词本</span><span class="cnt" id="cnt"></span></div>
-<div id="debug"></div>
-<div class="inp">
-  <input id="mi" type="text" placeholder="粘贴单词..." enterkeyhint="done">
-  <button onclick="add()">保存</button>
+<div class="top"><span>单词本</span><em id="cnt"></em></div>
+
+<div class="bar">
+  <input id="inp" type="text" placeholder="输入或粘贴单词 / 短语 / 句子..." enterkeyhint="done">
+  <button onclick="doAdd()">保存</button>
 </div>
-<div class="bar" id="bar"></div>
+
+<div class="load" id="load"></div>
 <main class="list" id="list"></main>
 
 <script>
-// ========== DB ==========
-const DB='vdb',VN=1,ST='w';
+// ========== Database ==========
+const DB='vdb', ST='w';
 let db;
-function odb(){return new Promise((r,j)=>{const q=indexedDB.open(DB,VN);q.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains(ST)){const s=d.createObjectStore(ST,{keyPath:'id',autoIncrement:true});s.createIndex('t','t',{unique:false})}};q.onsuccess=e=>{db=e.target.result;r(db)};q.onerror=()=>j(q.error)})}
-function all(){return new Promise(r=>{const tx=db.transaction(ST,'ro'),s=tx.objectStore(ST),i=s.index('t'),q=i.openCursor(null,'prev'),a=[];q.onsuccess=e=>{const c=e.target.result;c?(a.push(c.value),c.continue()):r(a)}})}
-function ins(o,t){return new Promise(r=>{const tx=db.transaction(ST,'rw');tx.objectStore(ST).add({o:o.trim(),t:t.trim(),ts:Date.now()});tx.oncomplete=()=>r()})}
-function del(id){return new Promise(r=>{const tx=db.transaction(ST,'rw');tx.objectStore(ST).delete(id);tx.oncomplete=()=>r()})}
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const r=indexedDB.open(DB,1);
+    r.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains(ST)){
+        const s=d.createObjectStore(ST,{keyPath:'id',autoIncrement:true});
+        s.createIndex('ts','ts',{unique:false});
+      }
+    };
+    r.onsuccess=e=>{db=e.target.result;resolve(db)};
+    r.onerror=()=>reject(r.error);
+  });
+}
 
-// ========== TRANSLATE ==========
-function hasCN(s){return /[一-鿿]/.test(s)}
-async function tr(text){
-  const lp=hasCN(text)?'zh|en':'en|zh-CN';
-  const r=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+lp);
-  const d=await r.json();
-  if(d.responseStatus!==200)throw new Error('翻译失败');
-  return d.responseData.translatedText;
+function getAll(){
+  return new Promise(resolve=>{
+    const tx=db.transaction(ST,'readonly');
+    const idx=tx.objectStore(ST).index('ts');
+    const r=idx.openCursor(null,'prev');
+    const a=[];
+    r.onsuccess=e=>{const c=e.target.result;c?(a.push(c.value),c.continue()):resolve(a)};
+  });
+}
+
+function addOne(orig, tran){
+  return new Promise(resolve=>{
+    const tx=db.transaction(ST,'readwrite');
+    tx.objectStore(ST).add({o:orig.trim(),t:tran.trim(),ts:Date.now()});
+    tx.oncomplete=()=>resolve();
+  });
+}
+
+function delOne(id){
+  return new Promise(resolve=>{
+    const tx=db.transaction(ST,'readwrite');
+    tx.objectStore(ST).delete(id);
+    tx.oncomplete=()=>resolve();
+  });
+}
+
+// ========== Translation ==========
+function isChinese(s){return /[一-鿿]/.test(s)}
+
+async function translate(text){
+  const lp=isChinese(text)?'zh|en':'en|zh-CN';
+  const resp=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+lp);
+  const json=await resp.json();
+  if(json.responseStatus!==200)throw new Error('翻译失败');
+  return json.responseData.translatedText;
 }
 
 // ========== UI ==========
-function ts(msg,ok){const e=document.createElement('div');e.className='toast';e.style.background=ok?'#2E7D32':'#C62828';e.textContent=msg;document.body.appendChild(e);setTimeout(()=>e.remove(),2300)}
-function ft(ts){const d=new Date(ts),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())}
-function es(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
-async function render(){
-  const w=await all(),l=document.getElementById('list'),c=document.getElementById('cnt');
-  c.textContent=w.length?w.length+' 条':'';
-  if(!w.length){l.innerHTML='<div class="empty">还没有单词<br><br>复制单词 → 打开单词本 → 自动识别粘贴</div>';return}
-  l.innerHTML=w.map(w=>`<div class="card" data-id="${w.id}" onclick="this.classList.toggle('show')"><div class="orig">${es(w.o)}</div><div class="tran">${es(w.t)}</div><div class="meta"><span class="time">${ft(w.ts)}</span><button class="del" onclick="event.stopPropagation();rm(${w.id})">删除</button></div></div>`).join('');
+function toast(msg,ok){
+  const el=document.createElement('div');
+  el.className='toast';
+  el.style.background=ok?'#2E7D32':'#C62828';
+  el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),2200);
 }
-async function rm(id){await del(id);await render();ts('已删除',false)}
-async function save(text){
-  document.getElementById('bar').classList.add('on');
-  try{const t=await tr(text);await ins(text,t);await render();ts('已保存',true)}catch(e){ts('翻译失败: '+e.message,false)}
-  document.getElementById('bar').classList.remove('on');
-}
-function add(){const i=document.getElementById('mi'),t=i.value.trim();if(t){i.value='';save(t)}}
-document.addEventListener('DOMContentLoaded',()=>{document.getElementById('mi').addEventListener('keydown',e=>{if(e.key==='Enter')add()})});
 
-// ========== SHARE HANDLER ==========
-function getParam(){
-  const s=location.search;if(!s)return null;
-  // Check both 'text' (GET) and 's' (from SW redirect)
+function fmt(ts){
+  const d=new Date(ts),p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+async function render(){
+  const words=await getAll();
+  const list=document.getElementById('list'), cnt=document.getElementById('cnt');
+  cnt.textContent=words.length?words.length+' 条':'';
+  if(!words.length){
+    list.innerHTML='<div class="none">还没有单词<br><br>输入或粘贴英语单词 → 点保存</div>';
+    return;
+  }
+  list.innerHTML=words.map(w=>`
+    <div class="card" onclick="this.classList.toggle('open')">
+      <div class="o">${esc(w.o)}</div>
+      <div class="t">${esc(w.t)}</div>
+      <div class="row"><span class="time">${fmt(w.ts)}</span><button class="del" onclick="event.stopPropagation();doDel(${w.id})">删除</button></div>
+    </div>
+  `).join('');
+}
+
+async function doDel(id){await delOne(id);await render();toast('已删除',false)}
+
+async function save(text){
+  const load=document.getElementById('load');
+  load.classList.add('on');
+  try{
+    const translated=await translate(text);
+    await addOne(text,translated);
+    await render();
+    toast('已保存',true);
+  }catch(e){
+    toast('翻译失败: '+e.message,false);
+  }
+  load.classList.remove('on');
+}
+
+function doAdd(){
+  const inp=document.getElementById('inp');
+  const text=inp.value.trim();
+  if(!text)return;
+  inp.value='';
+  save(text);
+}
+
+// Enter key
+document.getElementById('inp').addEventListener('keydown',e=>{if(e.key==='Enter')doAdd()});
+
+// ========== Share Target (check URL params) ==========
+function checkURL(){
+  const s=location.search;
+  if(!s)return null;
   const p=new URLSearchParams(s);
   return (p.get('s')||p.get('text')||'').trim()||null;
 }
-async function checkShare(){
-  const t=getParam();
-  if(t){history.replaceState(null,'',location.pathname);save(t)}
+
+// ========== Service Worker ==========
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js',{scope:location.pathname.replace(/\/[^/]*$/,'/')});
 }
 
-// ========== CLIPBOARD ==========
-async function checkClipboard(){
-  try{
-    const items=await navigator.clipboard.read();
-    for(const item of items){
-      if(item.types.includes('text/plain')){
-        const blob=await item.getType('text/plain');
-        const text=(await blob.text()).trim();
-        if(text && text.length<500){
-          return text;
-        }
-      }
-    }
-  }catch(e){}
-  return null;
-}
-
-// ========== INIT ==========
-let lastClip='';
-async function init(){
-  try{
-    // Check if launched from share
-    const shared=getParam();
-    if(shared){
-      history.replaceState(null,'',location.pathname);
-      await odb();
-      await render();
-      save(shared);
-      return;
-    }
-  }catch(e){}
-
-  await odb();
+// ========== Init ==========
+(async function(){
+  await openDB();
   await render();
 
-  // Auto clipboard check (only when page becomes visible)
-  document.addEventListener('visibilitychange',async ()=>{
-    if(document.visibilityState==='visible'){
-      try{
-        const text=await navigator.clipboard.readText();
-        if(text&&text!==lastClip&&text.trim().length<500&&text.trim().length>1){
-          lastClip=text;
-          save(text.trim());
-        }
-      }catch(e){}
-    }
-  });
-
-  // Check on load too
-  try{
-    const text=await navigator.clipboard.readText();
-    if(text&&text.trim().length<500&&text.trim().length>1){
-      lastClip=text.trim();
-    }
-  }catch(e){}
-
-  // Share check
-  checkShare();
-  window.addEventListener('pageshow',checkShare);
-
-  // PWA install prompt
-  window.addEventListener('beforeinstallprompt',e=>{
-    e.preventDefault();
-    window._install=e;
-    document.getElementById('debug').className='show';
-    document.getElementById('debug').innerHTML='检测到可安装！<button onclick="window._install.prompt()" style="margin-left:8px;background:#1A1A2E;color:#fff;border:none;padding:2px 10px;border-radius:8px;">点此安装</button>';
-  });
-}
-
-init();
+  // Handle shared text from URL
+  const shared=checkURL();
+  if(shared){
+    history.replaceState(null,'',location.pathname);
+    save(shared);
+  }
+})();
 </script>
+
 </body>
 </html>
