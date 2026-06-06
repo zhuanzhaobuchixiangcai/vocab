@@ -1,50 +1,27 @@
-const CACHE = 'vocab-v4';
-const ASSETS = [
-  '/vocab/',
-  '/vocab/index.html',
-  '/vocab/manifest.json',
-  '/vocab/icon-192.png',
-  '/vocab/icon-512.png'
-];
+const CACHE = 'v1';
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
+self.addEventListener('install', e => {
+  const base = self.location.pathname.replace(/\/[^/]*$/, '/');
+  e.waitUntil(caches.open(CACHE).then(c => c.add(base)));
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(self.clients.claim());
-});
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
-// Handle Web Share Target POST
-self.addEventListener('fetch', (e) => {
+self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
+  const basePath = new URL(self.location).pathname.replace(/\/[^/]*$/, '/');
 
-  // Intercept share target POST request
-  if (e.request.method === 'POST' && url.pathname.startsWith('/vocab/')) {
-    e.respondWith(
-      (async () => {
-        const formData = await e.request.formData();
-        // Only take the "text" field (selected text), ignore title/url
-        const text = (formData.get('text') || '').toString().trim();
-        const redirectURL = '/vocab/' + (text ? '?text=' + encodeURIComponent(text) : '');
-        return Response.redirect(redirectURL, 303);
-      })()
-    );
+  // Handle share target POST
+  if (e.request.method === 'POST' && url.pathname === basePath) {
+    e.respondWith((async () => {
+      const fd = await e.request.formData();
+      const text = (fd.get('text') || '').toString().trim();
+      return Response.redirect(basePath + (text ? '?s=' + encodeURIComponent(text) : ''), 303);
+    })());
     return;
   }
 
-  // Normal GET caching
   if (e.request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(e.request).then((cached) =>
-      cached || fetch(e.request).then((resp) => {
-        if (resp.ok && e.request.url.startsWith(self.location.origin)) {
-          const clone = resp.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, clone));
-        }
-        return resp;
-      })
-    )
-  );
+  e.respondWith(caches.match(e.request).then(c => c || fetch(e.request)));
 });
