@@ -47,7 +47,7 @@ body{font-family:-apple-system,sans-serif;background:#F5F5F5;color:#1A1A2E}
 <main class="list" id="list"></main>
 
 <script>
-const VER = 'v4';
+const VER = 'v5';
 console.log('[单词本]', VER);
 
 // ========== Storage (IndexedDB with localStorage fallback) ==========
@@ -57,11 +57,17 @@ let db;
 function openDB(){
   if(!USE_IDB) return Promise.resolve(); // will use localStorage
   return new Promise((resolve,reject)=>{
-    const r=indexedDB.open(DB,1);
+    const r=indexedDB.open(DB,2);
     r.onupgradeneeded=e=>{
       const d=e.target.result;
       if(!d.objectStoreNames.contains(ST)){
         d.createObjectStore(ST,{keyPath:'id',autoIncrement:true}).createIndex('ts','ts',{unique:false});
+      } else {
+        // v2 migration: add ts index if missing (old DB from earlier code)
+        const store = e.target.transaction.objectStore(ST);
+        if(!store.indexNames.contains('ts')){
+          store.createIndex('ts','ts',{unique:false});
+        }
       }
     };
     r.onsuccess=e=>{db=e.target.result;resolve(db)};
